@@ -1,0 +1,6 @@
+{
+  "name": "Apex Engineering University",
+  "description": "Apex Engineering University Admissions & Student Application Portal with secure authentication and application tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
