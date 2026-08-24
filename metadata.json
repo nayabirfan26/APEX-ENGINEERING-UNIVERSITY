@@ -1,6 +1,6 @@
 {
   "name": "Apex Engineering University",
-  "description": "Apex Engineering University Admissions & Student Application Portal with secure authentication and application tracking.",
+  "description": "Premier Engineering & Technology University Portal featuring Admissions Info, Cutting-Edge Research & Labs, Engineering Divisions, and AI Admissions Counselor.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

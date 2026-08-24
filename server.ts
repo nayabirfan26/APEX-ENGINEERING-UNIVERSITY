@@ -1,108 +1,98 @@
-import express from 'express';
-import cors from 'cors';
-import path from 'path';
-import dotenv from 'dotenv';
-import { createServer as createViteServer } from 'vite';
-import { GoogleGenAI } from '@google/genai';
-import { connectDB } from './server/db.js';
-import authRoutes from './server/routes/auth.js';
-import applicationRoutes from './server/routes/applications.js';
+import express from "express";
+import path from "path";
+import { createServer as createViteServer } from "vite";
+import { GoogleGenAI } from "@google/genai";
 
-dotenv.config();
+const app = express();
+const PORT = 3000;
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+app.use(express.json());
 
-  // Initialize DB Connection
-  await connectDB();
+// Initialize Gemini safely
+let ai: GoogleGenAI | null = null;
 
-  // Middleware
-  app.use(cors());
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
-
-  // API Routes
-  app.get('/api/health', (req, res) => {
-    res.json({
-      status: 'ok',
-      university: 'Apex Engineering University API',
-      timestamp: new Date().toISOString(),
+function getGeminiClient(): GoogleGenAI | null {
+  if (!ai && process.env.GEMINI_API_KEY) {
+    ai = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
     });
-  });
+  }
+  return ai;
+}
 
-  app.use('/api/auth', authRoutes);
-  app.use('/api/applications', applicationRoutes);
+// AI Advisor API Endpoint
+app.post("/api/advisor", async (req, res) => {
+  try {
+    const { question, context } = req.body;
+    if (!question) {
+      return res.status(400).json({ error: "Question is required" });
+    }
 
-  // Gemini AI Admissions Counselor Endpoint
-  app.post('/api/counselor', async (req, res) => {
-    try {
-      const { question } = req.body;
-      if (!question) {
-        return res.status(400).json({ message: 'Question prompt is required.' });
-      }
+    const client = getGeminiClient();
 
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (apiKey && apiKey !== 'MY_GEMINI_API_KEY') {
-        const ai = new GoogleGenAI({ apiKey });
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: [
-            {
-              role: 'user',
-              parts: [
-                {
-                  text: `You are Dr. Marcus Vance, Dean of Admissions at Apex Engineering University. 
-Apex Engineering University offers world-class degree programs:
-1. M.S. & Ph.D. in Artificial Intelligence & Quantum Computing
-2. B.S. & M.S. in Robotics, Mechatronics & Autonomous Systems
-3. B.S. & M.S. in Bioengineering & Neural Technology
-4. B.S. & M.S. in Aerospace Engineering & Space Propulsion
+    if (client) {
+      const systemInstruction = `
+You are the Official AI Academic Counselor for "Apex Engineering University" (AEU).
+AEU is a world-class premier engineering university offering 6 specialized divisions:
+1. School of Computer Science & Artificial Intelligence
+2. School of Electrical & Quantum Engineering
+3. School of Mechanical & Mechatronics Engineering
+4. School of Civil, Environmental & Sustainable Infrastructure
+5. School of Aerospace & Avionics Engineering
+6. School of Bio-Medical Engineering & Bio-Tech
 
-Admissions requirements: Min GPA 3.5, GRE optional, 2 letters of recommendation, Statement of Purpose.
-Deadlines: Fall Priority - April 1, Spring Priority - October 15.
+AEU features 12 advanced research labs ($45M+ annual grants), 98% graduate employability, real-time merit scholarships (25% to 100%), and Fall 2026 admissions currently active.
 
-Respond concisely, authoritatively, and warmly to this student's inquiry: "${question}"`
-                }
-              ]
-            }
-          ]
-        });
-        return res.json({ answer: response.text });
-      }
-
-      // Fallback counselor responses if GEMINI_API_KEY is unset
-      return res.json({
-        answer: `Welcome to Apex Engineering University Admissions! Regarding your query on "${question}": Our engineering programs require a solid background in mathematics and physics, a minimum target GPA of 3.5, and a passionate Statement of Purpose. Applications are reviewed on a rolling basis. You can submit your application directly through our Student Portal above!`
+Answer the prospective student's or visitor's question concisely, enthusiastically, and clearly.
+Context provided: ${context || 'General University Query'}.
+`;
+      const response = await client.models.generateContent({
+        model: "gemini-3.6-flash",
+        contents: question,
+        config: {
+          systemInstruction,
+          temperature: 0.7,
+        },
       });
-    } catch (err) {
-      console.error('Counselor API error:', err);
-      return res.status(500).json({
-        answer: 'Our Admissions Office is currently experiencing high inquiry volume. Please submit your application directly through the portal!'
+
+      return res.json({ answer: response.text });
+    } else {
+      // Fallback answer if API key is not configured
+      return res.json({
+        answer: `Thank you for asking about Apex Engineering University regarding "${question}". AEU offers world-class education across 6 major Engineering Divisions, 12 specialized Research Labs, and generous Merit Scholarships (up to 100%). Applications for Fall 2026 intake are open until August 30, 2026. Please check our Admissions Info tab to calculate your eligibility!`
       });
     }
-  });
+  } catch (error: any) {
+    console.error("AI Counselor Error:", error);
+    return res.status(500).json({
+      answer: "Applications for Fall 2026 are actively open! Eligibility requires minimum 60% in High School STEM courses. Explore our Engineering Divisions and Research Labs to learn more."
+    });
+  }
+});
 
-  // Vite middleware for development vs static build in production
-  if (process.env.NODE_ENV !== 'production') {
+async function startServer() {
+  if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
-      appType: 'spa',
+      appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🎓 Apex Engineering University Server running on http://0.0.0.0:${PORT}`);
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Apex University server running on http://0.0.0.0:${PORT}`);
   });
 }
 
-startServer().catch((err) => {
-  console.error('Failed to start university server:', err);
-});
+startServer();

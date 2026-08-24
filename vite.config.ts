@@ -12,8 +12,11 @@ export default defineConfig(() => {
       },
     },
     server: {
-      allowedHosts: true,
-      hmr: false, // <--- Ye line HMR WebSocket errors ko stop kar degi
+      // HMR is disabled in AI Studio via DISABLE_HMR env var.
+      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
+      hmr: process.env.DISABLE_HMR !== 'true',
+      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
+      watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
   };
 });
