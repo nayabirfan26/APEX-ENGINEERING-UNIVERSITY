@@ -1,7 +1,9 @@
+import "dotenv/config";
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
+import { connectDB } from "./server/db";
 
 const app = express();
 const PORT = 3000;
@@ -76,6 +78,8 @@ Context provided: ${context || 'General University Query'}.
 });
 
 async function startServer() {
+  await connectDB();
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
